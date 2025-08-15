@@ -1,13 +1,15 @@
-const express = require("express")
-const MyBook = require("../models/MyBook")
-const auth = require("../middleware/auth")
+import express from "express"
+import { body, validationResult } from "express-validator"
+import MyBook from "../models/MyBook.js"
+import Book from "../models/Book.js"
+import { authenticate } from "../middleware/auth.js"
 
 const router = express.Router()
 
 // Get user's books
-router.get("/", auth, async (req, res) => {
+router.get("/", authenticate, async (req, res) => {
   try {
-    const myBooks = await MyBook.find({ userId: req.user._id }).populate("bookId", "title author coverImage")
+    const myBooks = await MyBook.find({ userId: req.user._id }).populate("bookId").sort({ createdAt: -1 })
     res.json(myBooks)
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message })
@@ -15,27 +17,35 @@ router.get("/", auth, async (req, res) => {
 })
 
 // Add book to user's list
-router.post("/:bookId", auth, async (req, res) => {
+router.post("/:bookId", authenticate, async (req, res) => {
   try {
     const { bookId } = req.params
 
-    // Check if book already exists in user's list
-    const existingBook = await MyBook.findOne({
+    // Check if book exists
+    const book = await Book.findById(bookId)
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" })
+    }
+
+    // Check if already added
+    const existingMyBook = await MyBook.findOne({
       userId: req.user._id,
-      bookId: bookId,
+      bookId,
     })
 
-    if (existingBook) {
+    if (existingMyBook) {
       return res.status(400).json({ message: "Book already in your list" })
     }
 
+    // Add book
     const myBook = new MyBook({
       userId: req.user._id,
-      bookId: bookId,
+      bookId,
+      status: "Want to Read",
     })
 
     await myBook.save()
-    await myBook.populate("bookId", "title author coverImage")
+    await myBook.populate("bookId")
 
     res.status(201).json(myBook)
   } catch (error) {
@@ -44,47 +54,50 @@ router.post("/:bookId", auth, async (req, res) => {
 })
 
 // Update reading status
-router.patch("/:bookId/status", auth, async (req, res) => {
-  try {
-    const { bookId } = req.params
-    const { status } = req.body
+router.patch(
+  "/:bookId/status",
+  [authenticate, body("status").isIn(["Want to Read", "Currently Reading", "Read"])],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() })
+      }
 
-    const validStatuses = ["Want to Read", "Currently Reading", "Read"]
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: "Invalid status" })
+      const { bookId } = req.params
+      const { status } = req.body
+
+      const myBook = await MyBook.findOneAndUpdate(
+        { userId: req.user._id, bookId },
+        { status },
+        { new: true },
+      ).populate("bookId")
+
+      if (!myBook) {
+        return res.status(404).json({ message: "Book not found in your list" })
+      }
+
+      res.json(myBook)
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message })
     }
-
-    const myBook = await MyBook.findOneAndUpdate(
-      { userId: req.user._id, bookId: bookId },
-      { status },
-      { new: true },
-    ).populate("bookId", "title author coverImage")
-
-    if (!myBook) {
-      return res.status(404).json({ message: "Book not found in your list" })
-    }
-
-    res.json(myBook)
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message })
-  }
-})
+  },
+)
 
 // Update rating
-router.patch("/:bookId/rating", auth, async (req, res) => {
+router.patch("/:bookId/rating", [authenticate, body("rating").isInt({ min: 1, max: 5 })], async (req, res) => {
   try {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() })
+    }
+
     const { bookId } = req.params
     const { rating } = req.body
 
-    if (rating < 1 || rating > 5) {
-      return res.status(400).json({ message: "Rating must be between 1 and 5" })
-    }
-
-    const myBook = await MyBook.findOneAndUpdate(
-      { userId: req.user._id, bookId: bookId },
-      { rating },
-      { new: true },
-    ).populate("bookId", "title author coverImage")
+    const myBook = await MyBook.findOneAndUpdate({ userId: req.user._id, bookId }, { rating }, { new: true }).populate(
+      "bookId",
+    )
 
     if (!myBook) {
       return res.status(404).json({ message: "Book not found in your list" })
@@ -96,4 +109,24 @@ router.patch("/:bookId/rating", auth, async (req, res) => {
   }
 })
 
-module.exports = router
+// Remove book from user's list
+router.delete("/:bookId", authenticate, async (req, res) => {
+  try {
+    const { bookId } = req.params
+
+    const myBook = await MyBook.findOneAndDelete({
+      userId: req.user._id,
+      bookId,
+    })
+
+    if (!myBook) {
+      return res.status(404).json({ message: "Book not found in your list" })
+    }
+
+    res.json({ message: "Book removed from your list" })
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message })
+  }
+})
+
+export default router

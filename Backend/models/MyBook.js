@@ -1,4 +1,4 @@
-const mongoose = require("mongoose")
+import mongoose from "mongoose"
 
 const myBookSchema = new mongoose.Schema(
   {
@@ -29,6 +29,7 @@ const myBookSchema = new mongoose.Schema(
   },
 )
 
+// Ensure user can't add same book twice
 myBookSchema.index({ userId: 1, bookId: 1 }, { unique: true })
 
-module.exports = mongoose.model("MyBook", myBookSchema)
+export default mongoose.model("MyBook", myBookSchema)

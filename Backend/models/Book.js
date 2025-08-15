@@ -1,13 +1,33 @@
-const mongoose=require("mongoose")
+import mongoose from "mongoose"
 
-const bookSchema=new mongoose.Schema({
-     title:{type:String, required:true, trim:true,},
-     author:{type:String, required:true, trim:true,},
-     coverTime:{type:String, required:true,},
-     availability:{type:Boolean, default:true,},
-},{
- timestamps:true,
-},
+const bookSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    author: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    coverImage: {
+      type: String,
+      required: true,
+    },
+    availability: {
+      type: Boolean,
+      default: true,
+    },
+    description: {
+      type: String,
+      default: "",
+    },
+  },
+  {
+    timestamps: true,
+  },
 )
 
-module.exports=mongoose.model("Book", bookSchema)
+export default mongoose.model("Book", bookSchema)

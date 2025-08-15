@@ -1,8 +1,8 @@
-const express = require("express")
-const jwt = require("jsonwebtoken")
-const { body, validationResult } = require("express-validator")
-const User = require("../models/User")
-const auth = require("../middleware/auth")
+import express from "express"
+import jwt from "jsonwebtoken"
+import { body, validationResult } from "express-validator"
+import User from "../models/User.js"
+import { authenticate } from "../middleware/auth.js"
 
 const router = express.Router()
 
@@ -32,6 +32,7 @@ router.post(
       // Generate token
       const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" })
 
+      // Set cookie
       res.cookie("token", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -74,7 +75,7 @@ router.post("/login", [body("email").isEmail().normalizeEmail(), body("password"
     // Generate token
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" })
 
-    // Set HTTP-only cookie
+    // Set cookie
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -92,16 +93,16 @@ router.post("/login", [body("email").isEmail().normalizeEmail(), body("password"
 })
 
 // Get current user
-router.get("/me", auth, async (req, res) => {
+router.get("/me", authenticate, (req, res) => {
   res.json({
     user: { id: req.user._id, email: req.user.email },
   })
 })
 
 // Logout
-router.get("/logout", (req, res) => {
+router.post("/logout", (req, res) => {
   res.clearCookie("token")
-  res.json({ message: "Logged out successfully" })
+  res.json({ message: "Logout successful" })
 })
 
-module.exports = router
+export default router
