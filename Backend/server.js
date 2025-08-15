@@ -18,8 +18,11 @@ const PORT = process.env.PORT || 5000
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000, 
+  max: process.env.NODE_ENV === "production" ? 100 : 1000, 
+  message: {
+    error: "Too many requests from this IP, please try again later.",
+  },
 })
 
 // Middleware
